@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def hello_world():
-    first_name = 'elwardi'
+    first_name = 'luffy'
     stuff = "this a bold text"
     food = ["steak","chiken","pepperoni"]
     return render_template('index.html',first_name=first_name,stuff=stuff,food=food)
