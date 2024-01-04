@@ -4,7 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager, login_required, login_user, logout_user, UserMixin, current_user
 from sqlalchemy import MetaData
-from webForm import post_form,user_form,name_form,pw_form,LoginForm,SearchForm
+from webForm import post_form, user_form, name_form, pw_form, LoginForm, SearchForm
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
@@ -49,6 +49,8 @@ app.app_context().push()
 with app.app_context():
     db.create_all()
 # Models
+
+
 class Posts(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100))
@@ -56,7 +58,7 @@ class Posts(db.Model):
     slug = db.Column(db.String(120))
     content = db.Column(db.String(1000))
     date_posted = db.Column(db.Date, default=datetime.utcnow)
-    poster_id =db.Column(db.Integer, db.ForeignKey('users.id'))
+    poster_id = db.Column(db.Integer, db.ForeignKey('users.id'))
 
 
 class Users(db.Model, UserMixin):
@@ -67,9 +69,9 @@ class Users(db.Model, UserMixin):
     color = db.Column(db.String(100))
     about_author = db.Column(db.Text(500))
     date_added = db.Column(db.Date, default=datetime.utcnow)
-    profile_pic = db.Column(db.String(),nullable=True)
+    profile_pic = db.Column(db.String(), nullable=True)
     password_hash = db.Column(db.String(120))
-    posts = db.relationship('Posts', backref = 'poster')
+    posts = db.relationship('Posts', backref='poster')
 
     @property
     def password(self):
@@ -85,6 +87,7 @@ class Users(db.Model, UserMixin):
     def __repr__(self):
         return f'<Users: {self.email}>'
 
+
 @app.route("/admin/")
 @login_required
 def admin():
@@ -96,14 +99,13 @@ def admin():
         return redirect(url_for('dashboard'))
 
 
-
-
 @app.context_processor
 def base():
     form = SearchForm()
     return dict(form=form)
 
-@app.route('/search/',methods=['POST'])
+
+@app.route('/search/', methods=['POST'])
 def search():
     form = SearchForm()
     posts = Posts.query
@@ -111,8 +113,8 @@ def search():
         searched = form.searched.data
         posts = posts.filter(Posts.content.like('%' + searched + '%'))
         posts = posts.order_by(Posts.title).all()
-        return render_template('search.html',form=form,searched=searched,posts=posts)
-    
+        return render_template('search.html', form=form, searched=searched, posts=posts)
+
 
 @app.route('/login/', methods=['get', 'post'])
 def login():
@@ -152,7 +154,7 @@ def add_posts():
         poster = current_user.id
         post = Posts(
             title=form.title.data,
-            poster_id = poster,
+            poster_id=poster,
             slug=form.slug.data,
             content=form.content.data
         )
@@ -204,12 +206,11 @@ def edit_posts(id):
         return redirect(url_for('posts', id=post.id))
 
 
-
 @app.route('/posts/delete/<int:id>')
 def delete_posts(id):
     delete_post = Posts.query.get_or_404(id)
     id = current_user.id
-    if id == delete_post.poster.id :
+    if id == delete_post.poster.id:
         try:
             db.session.delete(delete_post)
             db.session.commit()
@@ -220,7 +221,7 @@ def delete_posts(id):
             flash('Whoops try again')
             return redirect(url_for('posts'))
     else:
-        flash('You are not authorized to delete this post !!!','error')
+        flash('You are not authorized to delete this post !!!', 'error')
         return redirect(url_for('posts'))
 
 
@@ -244,41 +245,51 @@ def update(id):
         update_name.color = request.form['color']
         update_name.username = request.form['username']
         update_name.about_author = request.form['about_author']
-        update_name.profile_pic = request.files['profile_pic']
-       
-        file = secure_filename(update_name.profile_pic.filename)
-        uuid_file = str(uuid.uuid1()) + '_' + file
-        #save picture
-        update_name.profile_pic.save(os.path.join(app.config['UPLOAD_FOLDER'],uuid_file))
-        #change to string and save it to db
-        update_name.profile_pic = uuid_file
-        try:
-            # files = update_name.profile_pic
-            # files.save(os.path.join(os.path.abspath(os.path.dirname(__file__)),app.config['UPLOAD_FOLDER'],secure_filename(files.filename)))
+        # update_name.profile_pic = request.files['profile_pic']
+
+        if request.files['profile_pic']:
+            update_name.profile_pic = request.files['profile_pic']
+            file = secure_filename(update_name.profile_pic.filename)
+            uuid_file = str(uuid.uuid1()) + '_' + file
+            # save picture
+            saver = request.files['profile_pic']
+            # change to string and save it to db
+            update_name.profile_pic = uuid_file
+            try:
+                db.session.commit()
+                saver.save(os.path.join(
+                    app.config['UPLOAD_FOLDER'], uuid_file))
+                flash("user updated !!!")
+                return render_template('update.html', form=form, update_name=update_name)
+            except:
+                flash("Error try again !!!")
+                return render_template('update.html', form=form, update_name=update_name)
+        else:
             db.session.commit()
-            flash("user updated !!!")
-            return render_template('update.html', form=form, update_name=update_name)
-        except:
-            flash("Error try again !!!")
-            return render_template('update.html', form=form, update_name=update_name)
+            return render_template('dashboard.html', form=form, update_name=update_name)
     else:
         return render_template('update.html', form=form, update_name=update_name, id=id)
 
 
 @app.route('/delete/<int:id>')
+@login_required
 def delete(id):
-    delete_name = Users.query.get_or_404(id)
-    name = None
-    form = user_form()
-    try:
-        db.session.delete(delete_name)
-        db.session.commit()
-        flash('User deleted successufly!!!')
-        our_users = Users.query.order_by(Users.name)
-        return render_template('add_user.html', form=form, name=name, our_users=our_users)
+    if id == current_user.id:
+        delete_name = Users.query.get_or_404(id)
+        name = None
+        form = user_form()
+        try:
+            db.session.delete(delete_name)
+            db.session.commit()
+            flash('User deleted successufly!!!')
+            our_users = Users.query.order_by(Users.name)
+            return render_template('add_user.html', form=form, name=name, our_users=our_users)
 
-    except:
-        return render_template('add_user.html', form=form, name=name, our_users=our_users)
+        except:
+            return render_template('add_user.html', form=form, name=name, our_users=our_users)
+    else:
+        flash('User can not be deleted !!!')
+        return redirect(url_for('dashboard'))
 
 
 @app.route('/user/add/', methods=['GET', 'POST'])

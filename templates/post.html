@@ -11,7 +11,6 @@
         {%endfor%}
     {%endwith%}
         <h1 class="mt-3 text-center"> Posts : </h1>
-        
             <div class="card mb-3">
                 <h5 class="card-header">{{post.title}}</h5>
                 <div class="card-body">
@@ -19,12 +18,39 @@
                     <small><p class="card-text">{{post.slug}}</p></small>
                     <small><p class="card-text">{{post.poster.about_author}}</p></small><br>
                     <p class="card-text">{{post.content|safe}}</p>
+
+                    
+                        <div class="card mb-3">
+                            <div class="row g-0">
+                                <div class="col-md-2">
+                                    {%if post.poster.profile_pic%}
+                                    <img src="{{url_for('static',filename='images/'+ post.poster.profile_pic)}}" width="200" align="left" alt="profile">
+                                    {%else%} 
+                                    <img src="{{url_for('static',filename='images/pic.jpg')}}" width="150" align="left" alt="profile">
+                                    {%endif%}
+                                </div>
+                                <div class="col-10 px-3">
+                                    <div class="card-body">
+                                        <div class="card-title">
+                                            <h5>{{post.poster.name}}</h5>
+                                            <p class="card-text">
+                                                {%if post.poster.about_author %}
+                                                    {{post.poster.about_author}}
+                                                {%else%}
+                                                    author has no about profile !!!!
+                                                {%endif%}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    
                     <a href="{{url_for('posts')}}" class="btn btn-outline-secondary">Back to posts</a>
                     {%if post.poster_id == current_user.id%}
                     <a href="{{url_for('edit_posts',id=post.id)}}" class="btn btn-outline-secondary">Edit post</a>
                     <a href="{{url_for('delete_posts',id=post.id)}}" class="btn btn-outline-danger">Delete post</a>
                     {%endif%}
-
                 </div>
             </div>
         
