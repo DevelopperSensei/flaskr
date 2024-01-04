@@ -1,28 +1,19 @@
-import uuid
 from flask import Flask, render_template, flash, redirect, url_for, request
+from flask_wtf import FlaskForm
+from wtforms import StringField, SubmitField, PasswordField
+from wtforms.validators import DataRequired, equal_to, ValidationError, length
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_login import LoginManager, login_required, login_user, logout_user, UserMixin, current_user
-from sqlalchemy import MetaData
-from webForm import post_form,user_form,name_form,pw_form,LoginForm,SearchForm
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_login import UserMixin
-from flask_ckeditor import CKEditor
-from werkzeug.utils import secure_filename
-from uuid import uuid1
-import os
+from wtforms.widgets import TextArea
+from flask_login import LoginManager, login_required, login_user, logout_user, UserMixin, current_user
+from sqlalchemy import MetaData
 
-
-UPLOAD_FOLDER = 'static/images/'
-# UPLOADS_PATH = join(dirname(realpath(__file__)), 'static/images/..')
-# ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 
 app = Flask(__name__)
-ckeditor = CKEditor(app)
 app.config['SECRET_KEY'] = 'my secret key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 metadata = MetaData(
     naming_convention={
         'pk': 'pk_%(table_name)s',
@@ -49,14 +40,15 @@ app.app_context().push()
 with app.app_context():
     db.create_all()
 # Models
+
+
 class Posts(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100))
-    # author = db.Column(db.String(120))
+    author = db.Column(db.String(120))
     slug = db.Column(db.String(120))
     content = db.Column(db.String(1000))
     date_posted = db.Column(db.Date, default=datetime.utcnow)
-    poster_id =db.Column(db.Integer, db.ForeignKey('users.id'))
 
 
 class Users(db.Model, UserMixin):
@@ -65,11 +57,8 @@ class Users(db.Model, UserMixin):
     name = db.Column(db.String(20), nullable=False)
     email = db.Column(db.String(100), nullable=False, unique=True)
     color = db.Column(db.String(100))
-    about_author = db.Column(db.Text(500))
     date_added = db.Column(db.Date, default=datetime.utcnow)
-    profile_pic = db.Column(db.String(),nullable=True)
     password_hash = db.Column(db.String(120))
-    posts = db.relationship('Posts', backref = 'poster')
 
     @property
     def password(self):
@@ -85,34 +74,46 @@ class Users(db.Model, UserMixin):
     def __repr__(self):
         return f'<Users: {self.email}>'
 
-@app.route("/admin/")
-@login_required
-def admin():
-    id = current_user.id
-    if id == 1:
-        return render_template('admin.html')
-    else:
-        flash('Sorry you have to be an admin to access this page !!!')
-        return redirect(url_for('dashboard'))
+
+class post_form(FlaskForm):
+    title = StringField("Title", validators=[DataRequired()])
+    author = StringField("Author", validators=[DataRequired()])
+    slug = StringField("Slug", validators=[DataRequired()])
+    content = StringField("Content", validators=[
+                          DataRequired()], widget=TextArea())
+    submit = SubmitField('Submit')
 
 
+class user_form(FlaskForm):
+    name = StringField("Name", validators=[DataRequired()])
+    username = StringField("Username", validators=[DataRequired()])
+    email = StringField("Email", validators=[DataRequired()])
+    color = StringField("Favorite color")
+    password_hash = PasswordField('Password', validators=[DataRequired(
+    ), equal_to('password_hash2', message="password must match")])
+    password_hash2 = PasswordField(
+        'Confirm password', validators=[DataRequired()])
+    submit = SubmitField('Submit')
 
 
-@app.context_processor
-def base():
-    form = SearchForm()
-    return dict(form=form)
+class name_form(FlaskForm):
+    name = StringField("Enter your name", validators=[DataRequired()])
+    submit = SubmitField('Submit')
 
-@app.route('/search/',methods=['POST'])
-def search():
-    form = SearchForm()
-    posts = Posts.query
-    if form.validate_on_submit():
-        searched = form.searched.data
-        posts = posts.filter(Posts.content.like('%' + searched + '%'))
-        posts = posts.order_by(Posts.title).all()
-        return render_template('search.html',form=form,searched=searched,posts=posts)
-    
+
+class pw_form(FlaskForm):
+    email = StringField("Enter your email :", validators=[DataRequired()])
+    password_hash = PasswordField(
+        "Enter your password :", validators=[DataRequired()])
+    submit = SubmitField('Submit')
+
+
+class LoginForm(FlaskForm):
+    username = StringField("Enter username :", validators=[DataRequired()])
+    password = PasswordField("Enter your password :",
+                             validators=[DataRequired()])
+    submit = SubmitField('Submit')
+
 
 @app.route('/login/', methods=['get', 'post'])
 def login():
@@ -149,15 +150,14 @@ def logout():
 def add_posts():
     form = post_form()
     if form.validate_on_submit():
-        poster = current_user.id
         post = Posts(
             title=form.title.data,
-            poster_id = poster,
+            author=form.author.data,
             slug=form.slug.data,
             content=form.content.data
         )
         form.title.data = ''
-        # form.author.data = ''
+        form.author.data = ''
         form.slug.data = ''
         form.content.data = ''
         db.session.add(post)
@@ -186,50 +186,35 @@ def edit_posts(id):
     form = post_form()
     if form.validate_on_submit():
         post.title = form.title.data
-        # post.author = form.author.data
+        post.author = form.author.data
         post.slug = form.slug.data
         post.content = form.content.data
         db.session.add(post)
         db.session.commit()
         flash('post edited successufly !!')
         redirect(url_for('posts', id=post.id))
-    if current_user.id == post.poster_id:
-        form.title.data = post.title
-        # form.author.data = post.author
-        form.slug.data = post.slug
-        form.content.data = post.content
-        return render_template('edit_posts.html', form=form)
-    else:
-        flash('You are not authorized to edit the post !!')
-        return redirect(url_for('posts', id=post.id))
-
+    form.title.data = post.title
+    form.author.data = post.author
+    form.slug.data = post.slug
+    form.content.data = post.content
+    return render_template('edit_posts.html', form=form)
 
 
 @app.route('/posts/delete/<int:id>')
 def delete_posts(id):
     delete_post = Posts.query.get_or_404(id)
-    id = current_user.id
-    if id == delete_post.poster.id :
-        try:
-            db.session.delete(delete_post)
-            db.session.commit()
-            flash('User deleted successufly!!!')
-            return redirect(url_for('posts'))
+    try:
+        db.session.delete(delete_post)
+        db.session.commit()
+        flash('User deleted successufly!!!')
+        return redirect(url_for('posts'))
 
-        except:
-            flash('Whoops try again')
-            return redirect(url_for('posts'))
-    else:
-        flash('You are not authorized to delete this post !!!','error')
+    except:
+        flash('Whoops try again')
         return redirect(url_for('posts'))
 
 
-# def allowed_file(profile_pic):
-#     return '.' in profile_pic and \
-#            profile_pic.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
 @app.route('/update/<int:id>', methods=['GET', 'POST'])
-@login_required
 def update(id):
     form = user_form()
     update_name = Users.query.get_or_404(id)
@@ -243,18 +228,7 @@ def update(id):
         update_name.email = request.form['email']
         update_name.color = request.form['color']
         update_name.username = request.form['username']
-        update_name.about_author = request.form['about_author']
-        update_name.profile_pic = request.files['profile_pic']
-       
-        file = secure_filename(update_name.profile_pic.filename)
-        uuid_file = str(uuid.uuid1()) + '_' + file
-        #save picture
-        update_name.profile_pic.save(os.path.join(app.config['UPLOAD_FOLDER'],uuid_file))
-        #change to string and save it to db
-        update_name.profile_pic = uuid_file
         try:
-            # files = update_name.profile_pic
-            # files.save(os.path.join(os.path.abspath(os.path.dirname(__file__)),app.config['UPLOAD_FOLDER'],secure_filename(files.filename)))
             db.session.commit()
             flash("user updated !!!")
             return render_template('update.html', form=form, update_name=update_name)

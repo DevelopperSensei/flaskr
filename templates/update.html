@@ -1,0 +1,33 @@
+{%extends "base.html"%}
+
+{%block content%}
+{%with messages = get_flashed_messages()%}
+{%for message in messages%}
+<div class="alert alert-success alert-dismissible fade show mt-3" role="alert">
+    {{message}}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+
+{%endfor%}
+{%endwith%}
+<br>
+{%if id == current_user.id%}
+    <h1 class="mt-3">List of updated : </h1>
+    <form method="POST" class="mt-3 mb-5" action="/update/{{update_name.id}}" enctype="multipart/form-data">
+        {{form.hidden_tag()}}
+        {{form.name.label(class='form-label')}}{{form.name(class="form-control mb-3",value=update_name.name)}}
+        {{form.username.label(class='form-label')}}{{form.username(class="form-control mb-3",value=update_name.username)}}
+        {{form.email.label(class='form-label')}}{{form.email(class="form-control mb-3",value=update_name.email)}}
+        {{form.color.label(class='form-label')}}{{form.color(class="form-control mb-3",value=update_name.color)}}
+        {{form.about_author.label(class='form-label')}}
+        <!-- {{form.about_author(class="form-control mb-3",value=update_name.about_author)}} -->
+        <textarea name="about_author" class="form-control mb-3">{{update_name.about_author}}</textarea>
+        {{form.profile_pic.label(class='form-label')}}{{form.profile_pic(class="form-control mb-3",value=update_name.color)}}
+
+        {{form.submit(class='btn btn-primary')}}
+        <a href="{{url_for('delete',id=current_user.id)}}" class="btn btn-danger">Delete</a>
+    </form>
+
+
+{%endif%}
+{%endblock%}
